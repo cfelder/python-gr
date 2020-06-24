@@ -51,6 +51,9 @@ _log = logging.getLogger(__name__)
 
 class GRWidget(QWidget):
 
+    logXinDomain = QtCore.Signal(bool)
+    logYinDomain = QtCore.Signal(bool)
+
     def __init__(self, *args, **kwargs):
         super(GRWidget, self).__init__(*args, **kwargs)
 
@@ -62,6 +65,17 @@ class GRWidget(QWidget):
         self._bgColor = QtCore.Qt.white
         os.environ["GKS_WSTYPE"] = "381" # GKS Qt Plugin
         os.environ["GKS_DOUBLE_BUF"] = "True"
+        self._pickEvent = None
+        self._logXinDomain = None
+        self._logYinDomain = None
+        self._lstPlot = []
+
+    def addPlot(self, *args, **kwargs):
+        for plot in args:
+            if plot and plot not in self._lstPlot:
+                self._lstPlot.append(plot)
+        self.update()
+        return self._lstPlot
 
     def paintEvent(self, event):
 
@@ -151,6 +165,32 @@ class GRWidget(QWidget):
                           "draw calls. A clear and update will be done "
                           "internally for each paintEvent.", FutureWarning)
 
+        gr.setwsviewport(0, self.mwidth, 0, self.mheight)
+        gr.setwswindow(0, self.sizex, 0, self.sizey)
+
+        for plot in self._lstPlot:
+            plot.sizex, plot.sizey = self.sizex, self.sizey
+            plot.drawGR()
+            # logDomainCheck
+            logXinDomain = plot.logXinDomain()
+            logYinDomain = plot.logYinDomain()
+            if logXinDomain != self._logXinDomain:
+                self._logXinDomain = logXinDomain
+                self.logXinDomain.emit(self._logXinDomain)
+            if logYinDomain != self._logYinDomain:
+                self._logYinDomain = logYinDomain
+                self.logYinDomain.emit(self._logYinDomain)
+
+        if self._pickEvent:
+            event = self._pickEvent
+            gr.setviewport(*event.viewportscaled)
+            wcPoint = event.getWC(event.viewport)
+            window = gr.inqwindow()
+            gr.setwindow(*event.getWindow())
+            gr.setmarkertype(gr.MARKERTYPE_PLUS)
+            gr.polymarker([wcPoint.x], [wcPoint.y])
+            gr.setwindow(*window)
+
     def save(self, path):
         (p, ext) = os.path.splitext(path)
         if ext.lower()[1:] == gr.GRAPHIC_GRX:
@@ -191,8 +231,6 @@ class GRWidget(QWidget):
 
 class InteractiveGRWidget(GRWidget):
 
-    logXinDomain = QtCore.Signal(bool)
-    logYinDomain = QtCore.Signal(bool)
     modePick = QtCore.Signal(bool)
 
     GESTURE_RECOGNIZERS = [PanGestureRecognizer, SelectGestureRecognizer]
@@ -220,50 +258,10 @@ class InteractiveGRWidget(GRWidget):
         guiConn.connect(MouseGestureEvent.MOUSE_SELECT, self._mouseSelect)
         self.setMouseTracking(True)
         self._tselect = None  # select point tuple
-        self._logXinDomain = None
-        self._logYinDomain = None
         self._pickMode = False
-        self._pickEvent = None
         self._selectEnabled, self._panEnabled = True, True
         self._roiEnabled = True
         self._zoomEnabled = True
-        self._lstPlot = []
-
-    def draw(self, clear=None, update=None):
-        # obsolete kwargs clear, update (unused) just kept for compatibility
-        GRWidget.draw(self, clear, update)
-        gr.setwsviewport(0, self.mwidth, 0, self.mheight)
-        gr.setwswindow(0, self.sizex, 0, self.sizey)
-
-        for plot in self._lstPlot:
-            plot.sizex, plot.sizey = self.sizex, self.sizey
-            plot.drawGR()
-            # logDomainCheck
-            logXinDomain = plot.logXinDomain()
-            logYinDomain = plot.logYinDomain()
-            if logXinDomain != self._logXinDomain:
-                self._logXinDomain = logXinDomain
-                self.logXinDomain.emit(self._logXinDomain)
-            if logYinDomain != self._logYinDomain:
-                self._logYinDomain = logYinDomain
-                self.logYinDomain.emit(self._logYinDomain)
-
-        if self._pickEvent:
-            event = self._pickEvent
-            gr.setviewport(*event.viewportscaled)
-            wcPoint = event.getWC(event.viewport)
-            window = gr.inqwindow()
-            gr.setwindow(*event.getWindow())
-            gr.setmarkertype(gr.MARKERTYPE_PLUS)
-            gr.polymarker([wcPoint.x], [wcPoint.y])
-            gr.setwindow(*window)
-
-    def addPlot(self, *args, **kwargs):
-        for plot in args:
-            if plot and plot not in self._lstPlot:
-                self._lstPlot.append(plot)
-        self.update()
-        return self._lstPlot
 
     def plot(self, *args, **kwargs):
         plot = Plot()
