@@ -133,7 +133,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._gr.addPlot(self._plot)
 
         self._plot2.title = "Second Widget"
-        self._plot2.subTitle = "Linear Example (less interactive)"
+        self._plot2.subTitle = "Linear Example (non-interactive)"
         self._plot2.xlabel = "x2"
         self._plot2.ylabel = "f2(x2)"
         self._plot2.setLegend(True)
